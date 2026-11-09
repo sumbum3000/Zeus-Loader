@@ -7,6 +7,9 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Zeus">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="theme-color" content="#10201a">
 <title>Zeus Loader</title>
 <style>
 :root{--bg:#10201a;--panel:#183128;--ink:#eef5ef;--mute:#9db8a8;--accent:#7bd36b;--accent-ink:#0b1a10;--danger:#ff8a7a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -105,6 +108,7 @@ body.playing::before{display:none}
     try{(document.documentElement.requestFullscreen||function(){}).call(document.documentElement)}catch(e){}
   });
 
+  try{if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')}catch(e){}
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
   idb('readonly',function(s){return s.get(KEY)}).then(function(rec){if(rec)show(rec)}).catch(function(){});
 })();
