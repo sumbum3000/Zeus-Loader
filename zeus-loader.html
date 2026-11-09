@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Zeus">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Zeus Loader</title>
+<style>
+:root{--bg:#10201a;--panel:#183128;--ink:#eef5ef;--mute:#9db8a8;--accent:#7bd36b;--accent-ink:#0b1a10;--danger:#ff8a7a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef5ee;--panel:#ffffff;--ink:#12241a;--mute:#4d6a58;--accent:#2f8f2f;--accent-ink:#ffffff;--danger:#b3261e}}
+:root[data-theme="dark"]{--bg:#10201a;--panel:#183128;--ink:#eef5ef;--mute:#9db8a8;--accent:#7bd36b;--accent-ink:#0b1a10;--danger:#ff8a7a}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:16px/1.5 ui-rounded,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;align-items:center;justify-content:center}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+main{width:min(26rem,100% - 2rem);padding:1.5rem 0}
+h1{font-size:1.9rem;line-height:1.15;margin:0 0 .35rem;letter-spacing:-.01em}
+p{margin:.25rem 0 1.25rem;color:var(--mute)}
+.card{background:var(--panel);border-radius:1rem;padding:1rem 1.1rem;margin-bottom:1rem}
+.card b{display:block;word-break:break-all}
+.card span{color:var(--mute);font-size:.9rem}
+button,label.btn{display:block;width:100%;box-sizing:border-box;text-align:center;border:0;border-radius:.9rem;padding:1rem;font:inherit;font-weight:700;margin-bottom:.7rem;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+button.sub,label.sub{background:var(--panel);color:var(--ink)}
+button.bad{background:transparent;color:var(--danger)}
+button:disabled{opacity:.5}
+input[type=file]{display:none}
+#msg{min-height:1.4em;color:var(--mute);font-size:.9rem}
+#msg.err{color:var(--danger)}
+small{display:block;color:var(--mute);margin-top:1rem;font-size:.85rem}
+#game{position:fixed;inset:0;width:100%;height:100%;border:0;background:#000;z-index:20;display:none}
+body.playing main{display:none}
+body.playing #game{display:block}
+body.playing::before{display:none}
+</style>
+</head>
+<body>
+<main id="ui">
+  <h1>Zeus Loader</h1>
+  <p>Plays your Eaglercraft file full screen and keeps it on this device.</p>
+  <div class="card" id="info"><b id="name">No game file yet</b><span id="size">Choose the .html file from Files.</span></div>
+  <button id="play" disabled>Play</button>
+  <label class="btn sub" for="pick" id="pickLabel">Choose game file</label>
+  <input type="file" id="pick" accept=".html,text/html">
+  <button class="bad" id="remove" style="display:none">Remove saved file</button>
+  <div id="msg"></div>
+  <small>Unzip the download in Files first, then pick the .html inside. Resource packs are imported from inside the game’s own menus.</small>
+</main>
+<iframe id="game" title="Game" allow="fullscreen; autoplay; gamepad; clipboard-read; clipboard-write; pointer-lock; screen-wake-lock"></iframe>
+<script>
+(function(){
+  var DB='zeus-loader',STORE='files',KEY='game';
+  var $=function(i){return document.getElementById(i)};
+  var current=null;
+
+  function say(t,err){var m=$('msg');m.textContent=t||'';m.className=err?'err':''}
+  function mb(n){return (n/1048576).toFixed(1)+' MB'}
+
+  function openDB(){return new Promise(function(res,rej){
+    var r=indexedDB.open(DB,1);
+    r.onupgradeneeded=function(){r.result.createObjectStore(STORE)};
+    r.onsuccess=function(){res(r.result)};
+    r.onerror=function(){rej(r.error)};
+  })}
+  function idb(mode,fn){return openDB().then(function(db){return new Promise(function(res,rej){
+    var tx=db.transaction(STORE,mode),req=fn(tx.objectStore(STORE));
+    tx.oncomplete=function(){res(req&&req.result)};
+    tx.onerror=function(){rej(tx.error)};
+    tx.onabort=function(){rej(tx.error)};
+  })})}
+
+  function show(rec){
+    current=rec||null;
+    $('name').textContent=rec?rec.name:'No game file yet';
+    $('size').textContent=rec?mb(rec.blob.size)+' saved on this device':'Choose the .html file from Files.';
+    $('play').disabled=!rec;
+    $('remove').style.display=rec?'block':'none';
+    $('pickLabel').textContent=rec?'Replace game file':'Choose game file';
+  }
+
+  $('pick').addEventListener('change',function(e){
+    var f=e.target.files&&e.target.files[0];
+    if(!f)return;
+    if(/\.zip$/i.test(f.name)){say('That is a zip. Unzip it in Files, then choose the .html inside.',true);return}
+    say('Saving…');
+    var rec={name:f.name,blob:f.slice(0,f.size,'text/html')};
+    idb('readwrite',function(s){return s.put(rec,KEY)}).then(function(){
+      say('Saved. Tap Play.');show(rec);
+    }).catch(function(){
+      say('Couldn’t save on this device, so it will only run this session.',true);show(rec);
+    });
+    e.target.value='';
+  });
+
+  $('remove').addEventListener('click',function(){
+    idb('readwrite',function(s){return s.delete(KEY)}).catch(function(){}).then(function(){show(null);say('Removed.')});
+  });
+
+  $('play').addEventListener('click',function(){
+    if(!current)return;
+    var fr=$('game');
+    fr.src=URL.createObjectURL(current.blob);
+    document.body.classList.add('playing');
+    try{(document.documentElement.requestFullscreen||function(){}).call(document.documentElement)}catch(e){}
+  });
+
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
+  idb('readonly',function(s){return s.get(KEY)}).then(function(rec){if(rec)show(rec)}).catch(function(){});
+})();
+</script>
+</body>
+</html>
